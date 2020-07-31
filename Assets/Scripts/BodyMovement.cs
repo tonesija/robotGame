@@ -9,19 +9,27 @@ public class BodyMovement : MonoBehaviour
 
     Rigidbody2D rb;
     Rigidbody2D ballrb;
+
+    Rigidbody2D gunrb;
+    Rigidbody2D headrb;
     WheelJoint2D wj;
+
+    ParticleSystem ps;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         wj = GetComponent<WheelJoint2D>();
+        ps = GetComponent<ParticleSystem>();
+        gunrb = transform.parent.GetChild(transform.GetSiblingIndex() + 2).GetComponent<Rigidbody2D>();
         ballrb = transform.parent.GetChild(transform.GetSiblingIndex() - 1).GetComponent<Rigidbody2D>();
+        headrb = transform.parent.GetChild(transform.GetSiblingIndex() + 1).GetComponent<Rigidbody2D>();
+        rb.inertia = 0f;
     }
 
     
     void FixedUpdate()
     {   
-        //rb.MoveRotation(ballrb.velocity.x * maxRotation);
         float force = rotationSpeed / 4f;
 
         if(!(Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.D))){
@@ -30,24 +38,22 @@ public class BodyMovement : MonoBehaviour
 
             LerpToRotation(0f);
         }else {
-            rb.inertia = 0f;
-
             if(Input.GetKey(KeyCode.A)){
                 force = -force;
             }
+            rb.AddForceAtPosition(new Vector2(force, 0f) * Time.fixedDeltaTime, new Vector2(rb.position.x, rb.position.y + 0.15f));
         }
-        print(force);
-        rb.AddForceAtPosition(new Vector2(force, 0f) * Time.fixedDeltaTime, new Vector2(rb.position.x, rb.position.y + 0.15f));
-        Debug.DrawLine(rb.position, new Vector2(rb.position.x, rb.position.y + 0.15f));
-        
-
 
         if(ballrb.velocity.x > 0 && rb.rotation <= -maxRotation){
-            rb.freezeRotation = true;
+            LerpToRotation(-maxRotation);
         } else if(ballrb.velocity.x < 0 && rb.rotation >= maxRotation){
-            rb.freezeRotation = true;
+            LerpToRotation(maxRotation);
         } else {
-            rb.freezeRotation = false;
+            LerpToRotation(0f);
+        }
+
+        if(Mathf.Abs(ballrb.velocity.x) > 4f){
+            EmitSpeedParticles();
         }
         
     }
@@ -58,37 +64,31 @@ public class BodyMovement : MonoBehaviour
         rb.MoveRotation(z);
     }
 
-    void LateUpdate() {
-        /*
-        if(rb.rotation > maxRotation && ballrb.velocity.magnitude > 0.8f){
-            rb.freezeRotation = true;
-            rb.rotation = maxRotation;
-            
-        }else if(rb.rotation < -maxRotation && ballrb.velocity.magnitude > 0.8f){
-            rb.freezeRotation = true;
-            rb.rotation = -maxRotation;
-
-        }else{
-            rb.freezeRotation = false;
-            rb.rotation = 0f;
-        }
-        if(Mathf.Abs(ballrb.velocity.x) < 0.2f){
-            rb.freezeRotation = false;
-        }
-        */
+    
+    void OnJointBreak2D(Joint2D brokenJoint)
+    {
+        transform.parent = null;
+        headrb.transform.parent = null;
+        gunrb.transform.parent = null;
+        Destroy(gunrb.transform.GetComponent<RobotGunScript>());
+        rb.freezeRotation = false;
+        gameObject.layer = 0;
+        rb.mass = 0.3f;
+        Destroy(this);
     }
 
-    
+    void EmitSpeedParticles(){
+        ParticleSystem.EmitParams emitParams = new ParticleSystem.EmitParams();
+        int count = 1;
 
-    float CorrectRotation(){
-        float rotation = transform.eulerAngles.z;
-        if(rotation > maxRotation && rotation < 180){
-            return maxRotation;
+        if(Mathf.Abs(ballrb.velocity.x) > 5){
+            count++;
         }
-        if(rotation < 360 - maxRotation && rotation > 189){
-            return 360 - maxRotation;
+
+        if(Mathf.Abs(ballrb.velocity.x) > 6){
+            count++;
         }
-        return rotation;
         
+        ps.Emit(emitParams, count);
     }
 }

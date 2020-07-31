@@ -5,9 +5,13 @@ using UnityEngine;
 public class RobotMovement : MonoBehaviour
 {
     Rigidbody2D rb;
-    public float speed;
+    public float maxSpeed;
+    float speed;
     public float deceleration;
     public float jumpForce;
+
+    public float maxAngularVelocity;
+    float currAngularVelocity;
 
     int robotLayerMask = 1 << 8; //mask for layer 8 (layer 8 = Robot part layer)
 
@@ -22,62 +26,58 @@ public class RobotMovement : MonoBehaviour
     }
 
   
-    void Update()
+    void FixedUpdate()
     {
 
         UpdateGrounded();
 
         //jump
-        if(Input.GetKeyDown(KeyCode.Space) && grounded){
-            print("jump");
+        if(Input.GetKey(KeyCode.Space) && grounded){
             rb.AddForce(new Vector2(0f, jumpForce), ForceMode2D.Impulse);
-            return;
         }
 
-        if(Input.GetKeyDown(KeyCode.LeftShift)){
+        //sprint
+        speed = maxSpeed;
+        currAngularVelocity = maxAngularVelocity;
+        if(Input.GetKey(KeyCode.LeftShift)){
             speed *= 2;
+            currAngularVelocity *= 2;
         }
-
-        if(Input.GetKeyUp(KeyCode.LeftShift)){
-            speed /= 2;
-        }
+        
 
         //left
         if(Input.GetKey(KeyCode.A)){
             if(rb.velocity.x > 0){
-                rb.angularVelocity = 2 * speed;
+                rb.AddTorque(2*speed);
             }else {
-                rb.angularVelocity = speed;
+                rb.AddTorque(speed);
             }
-            return;
+            ClampAngularVelocity();
+            FlipRobot(-1f);
         }
 
         //right
         if(Input.GetKey(KeyCode.D)){
             if(rb.velocity.x < 0){
-                rb.angularVelocity = -2 * speed;
+                rb.AddTorque(-2*speed);
             }else {
-                rb.angularVelocity = -speed;
+                rb.AddTorque(-speed);
             }
-            return;
+            ClampAngularVelocity();
+            FlipRobot(1f);
         }
 
         //handbreak
         if(Input.GetKey(KeyCode.C) && grounded){
             rb.angularVelocity = 0;
             rb.velocity = new Vector2(0f, 0f);
-            return;
         }
 
         Decelerate();
     }
 
     void Decelerate(){
-        if((Mathf.Abs(rb.angularVelocity) < 1f || rb.velocity.magnitude < 0.1f) && grounded){
-            rb.angularVelocity = 0;
-            rb.velocity = new Vector2(0, 0);
-            return;
-        }
+        if(rb.velocity.magnitude < 0.01f) return;
         if(rb.angularVelocity > 0){
             rb.angularVelocity -= deceleration;
         }else {
@@ -85,19 +85,37 @@ public class RobotMovement : MonoBehaviour
         }
     }
 
-    void UpdateGrounded(){
-        RaycastHit2D hit = Physics2D.Raycast(transform.position, -Vector2.up, wheelRadius + 0.01f, robotLayerMask);
-        //print(hit.collider.gameObject);
+    void ClampAngularVelocity(){
+        if(rb.angularVelocity > currAngularVelocity){
+            rb.angularVelocity = currAngularVelocity;
+            return;
+        }
+        if(rb.angularVelocity < -currAngularVelocity){
+            rb.angularVelocity = -currAngularVelocity;
+        }
+    }
 
-        
+    void UpdateGrounded(){
+        RaycastHit2D hit = Physics2D.Raycast(transform.position, -Vector2.up, wheelRadius + 0.03f, robotLayerMask);
 
         if (hit.collider != null) {
-            Debug.DrawLine(transform.position, new Vector2(transform.position.x, transform.position.y - (wheelRadius + 0.01f)), Color.red);
+            Debug.DrawLine(transform.position, new Vector2(transform.position.x, transform.position.y - (wheelRadius + 0.03f)), Color.red);
             grounded = true;
         }else{
-            Debug.DrawLine(transform.position, new Vector2(transform.position.x, transform.position.y - (wheelRadius + 0.01f)), Color.green);
+            Debug.DrawLine(transform.position, new Vector2(transform.position.x, transform.position.y - (wheelRadius + 0.03f)), Color.green);
             grounded = false;
         }
+    }
+
+    //0 - left, 1 right
+    void FlipRobot(float dir){
+        if(transform.parent.localScale.x.Equals(dir)){
+            return;
+        }
+
+        transform.parent.localScale = new Vector3(dir, transform.parent.localScale.y, transform.parent.localScale.z);
+
+        transform.parent.position = new Vector3(transform.parent.position.x - dir*2*transform.localPosition.x, transform.parent.position.y, transform.parent.position.z);
     }
 
 }
